@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Gestión de Stock y Ventas - Drugstore X</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- ========================================================================
+       BARRA SUPERIOR (HEADER Y ESTADO DEL SISTEMA)
+       ======================================================================== -->
+  <header class="top-navbar">
+    <div class="brand-section">
+      <div class="brand-logo-icon">DX</div>
+      <div class="brand-text">
+        <h1>Drugstore "X"</h1>
+        <p>Concordia, Entre Ríos &bull; Sistema de Stock y Ventas</p>
+      </div>
+    </div>
+
+    <!-- Indicadores de estado del sistema (RNFD-01, etc.) -->
+    <div class="system-status-pills">
+      <div class="status-pill online" title="Operativo 100% sin conexión a internet (RNFD-01)">
+        <span class="dot-indicator"></span>
+        <span>Local / Offline Listo</span>
+      </div>
+      <div class="status-pill" title="Horario comercial del negocio: 8:00 AM a 3:00 AM">
+        <span>⏰ 8:00 - 03:00 hs</span>
+      </div>
+      <div class="status-pill" id="liveClockDisplay">
+        <span>--:--:--</span>
+      </div>
+    </div>
+
+    <!-- Barra de Usuario Activo y Rol (CU01) -->
+    <div class="user-session-bar">
+      <div class="user-badge">
+        <div class="user-avatar" id="userAvatarText">G</div>
+        <div class="user-info">
+          <span class="user-name" id="userNameDisplay">Gerente General</span>
+          <span class="user-role role-gerente" id="userRoleDisplay">Gerente (Acceso Total)</span>
+        </div>
+      </div>
+      <button class="quick-switch-btn" id="btnQuickSwitchRole" title="Alternar rápidamente entre Gerente y Empleado para evaluar permisos RUP">
+        🔄 Cambiar a Empleado
+      </button>
+      <button class="logout-btn" id="btnLogout" title="Cerrar Sesión">
+        Salir
+      </button>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       BARRA DE PESTAÑAS PRINCIPALES (NAVEGACIÓN INTUITIVA)
+       ======================================================================== -->
+  <nav class="main-tabs-bar">
+    <button class="tab-btn active" data-view="view-pos">
+      <span>🛒 Punto de Venta</span>
+      <span class="tab-shortcut">F2</span>
+    </button>
+    <button class="tab-btn" data-view="view-products">
+      <span>📦 Productos y Stock</span>
+      <span class="badge-pill" id="productsCountBadge">0</span>
+    </button>
+    <button class="tab-btn" data-view="view-sales">
+      <span>📋 Ventas y Comprobantes</span>
+    </button>
+    <button class="tab-btn" data-view="view-stock-movements">
+      <span>🔄 Movimientos de Stock</span>
+    </button>
+    <button class="tab-btn gerente-tab" data-view="view-users" id="tabUsers">
+      <span>👥 Usuarios</span>
+      <span class="gerente-only-tag">Gerente</span>
+    </button>
+    <button class="tab-btn gerente-tab" data-view="view-reports" id="tabReports">
+      <span>📊 Informes</span>
+      <span class="gerente-only-tag">Gerente</span>
+    </button>
+  </nav>
+
+  <!-- ========================================================================
+       CONTENIDO PRINCIPAL POR VISTAS
+       ======================================================================== -->
+  <main class="main-content">
+
+    <!-- ----------------------------------------------------------------------
+         VISTA 1: PUNTO DE VENTA (CU06 REGISTRAR VENTA / CU11 CONSULTAR PRODUCTO)
+         ---------------------------------------------------------------------- -->
+    <section id="view-pos" class="view-section active">
+      <div class="pos-grid-layout">
+        
+        <!-- Panel Izquierdo: Catálogo y Búsqueda Rápida de Productos -->
+        <div class="pos-catalog-panel">
+          <div class="pos-search-bar">
+            <input 
+              type="text" 
+              id="posSearchInput" 
+              class="pos-search-input" 
+              placeholder="🔍 Escanee código de barras o escriba nombre del producto (Presione Enter para agregar)..."
+              autofocus
+            >
+          </div>
+
+          <!-- Filtro rápido por categorías -->
+          <div class="category-pills" id="posCategoryPills">
+            <button class="cat-pill active" data-cat="Todas">Todas</button>
+            <button class="cat-pill" data-cat="Bebidas">Bebidas</button>
+            <button class="cat-pill" data-cat="Golosinas">Golosinas</button>
+            <button class="cat-pill" data-cat="Snacks">Snacks</button>
+            <button class="cat-pill" data-cat="Almacén">Almacén</button>
+            <button class="cat-pill" data-cat="Kiosco">Kiosco</button>
+          </div>
+
+          <!-- Cuadrícula de productos clickeables -->
+          <div class="pos-products-grid" id="posProductsGrid">
+            <!-- Renderizado dinámico desde pos.js -->
+          </div>
+        </div>
+
+        <!-- Panel Derecho: Ticket de Venta Actual (Carrito) -->
+        <div class="pos-cart-panel">
+          <div class="cart-header">
+            <h3>Ticket de Venta en Curso</h3>
+            <span class="badge badge-activo" id="cartItemsBadge">0 ítems</span>
+          </div>
+
+          <!-- Lista de ítems cargados -->
+          <div class="cart-items-container" id="cartItemsContainer">
+            <div class="cart-empty-message" id="cartEmptyMessage">
+              <p style="font-size: 32px; margin-bottom: 8px;">🛒</p>
+              <p>No hay productos en el ticket.</p>
+              <p style="font-size: 12px; color: var(--text-light); margin-top: 4px;">
+                Seleccione productos del catálogo o escanee el código de barras.
+              </p>
+            </div>
+            <div id="cartItemsList"></div>
+          </div>
+
+          <!-- Resumen y Cobro -->
+          <div class="cart-summary-section">
+            <div class="summary-line">
+              <span>Cantidad de productos:</span>
+              <strong id="cartSummaryQty">0</strong>
+            </div>
+            <div class="summary-line">
+              <span>Subtotal:</span>
+              <strong id="cartSummarySubtotal">$ 0,00</strong>
+            </div>
+            <div class="total-line">
+              <span>TOTAL A COBRAR:</span>
+              <span class="total-amount" id="cartSummaryTotal">$ 0,00</span>
+            </div>
+
+            <div class="cart-action-buttons">
+              <button class="btn btn-success btn-lg" id="btnOpenCheckoutModal">
+                <span>💳 Cobrar / Emitir Ticket (F4)</span>
+              </button>
+              <button class="btn btn-secondary btn-sm" id="btnClearCart">
+                <span>Limpiar Ticket</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ----------------------------------------------------------------------
+         VISTA 2: CATÁLOGO DE PRODUCTOS Y CONTROL DE STOCK (CU10, CU11, CU12, CU13)
+         ---------------------------------------------------------------------- -->
+    <section id="view-products" class="view-section">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>Catálogo de Productos y Control de Stock</h2>
+          <p>Administración del inventario, precios, suspensiones y devoluciones (Regla R-03)</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-primary gerente-btn" id="btnOpenNewProductModal">
+            <span>+ Registrar Nuevo Producto</span>
+          </button>
+          <button class="btn btn-secondary gerente-btn" id="btnOpenStockEntryModal">
+            <span>📦 Ingreso / Ajuste Stock</span>
+          </button>
+          <button class="btn btn-secondary gerente-btn" id="btnOpenReturnModal">
+            <span>↩ Registrar Devolución</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <!-- Barra de filtros -->
+        <div class="table-filters-bar">
+          <div class="search-box-inline">
+            <input 
+              type="text" 
+              id="filterProductSearch" 
+              class="form-input" 
+              placeholder="Buscar por código de barras o nombre..."
+            >
+          </div>
+          <div class="filter-dropdowns">
+            <select id="filterProductCategory" class="form-select" style="width: 160px;">
+              <option value="Todas">Todas las Categorías</option>
+              <option value="Bebidas">Bebidas</option>
+              <option value="Golosinas">Golosinas</option>
+              <option value="Snacks">Snacks</option>
+              <option value="Almacén">Almacén</option>
+              <option value="Kiosco">Kiosco</option>
+            </select>
+            <select id="filterProductStatus" class="form-select" style="width: 150px;">
+              <option value="Todos">Todos los Estados</option>
+              <option value="activo">Solo Activos</option>
+              <option value="suspendido">Solo Suspendidos</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Tabla de datos -->
+        <div class="data-table-wrapper">
+          <table class="data-table" id="productsTable">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Nombre del Producto</th>
+                <th>Categoría</th>
+                <th>Precio Unitario</th>
+                <th>Stock Actual</th>
+                <th>Estado</th>
+                <th style="text-align: right;">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="productsTableBody">
+              <!-- Renderizado dinámico desde products.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ----------------------------------------------------------------------
+         VISTA 3: HISTORIAL DE VENTAS Y COMPROBANTES (CU07, CU08, CU09)
+         ---------------------------------------------------------------------- -->
+    <section id="view-sales" class="view-section">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>Historial de Ventas y Comprobantes</h2>
+          <p>Consultas por período, anulación dentro de 24 horas (Regla R-02) y modificación de ventas</p>
+        </div>
+      </div>
+
+      <!-- Métricas del período consultado (CU09) -->
+      <div class="metrics-row">
+        <div class="metric-card">
+          <div class="metric-icon-box icon-green">💵</div>
+          <div class="metric-info">
+            <h4>Total Recaudado (Válidas)</h4>
+            <p id="salesMetricTotal">$ 0,00</p>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon-box icon-blue">🧾</div>
+          <div class="metric-info">
+            <h4>Total Ventas Registradas</h4>
+            <p id="salesMetricCount">0</p>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon-box icon-red">🚫</div>
+          <div class="metric-info">
+            <h4>Ventas Anuladas</h4>
+            <p id="salesMetricAnuladas">0</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <!-- Filtros por período (CU09) -->
+        <div class="table-filters-bar">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <label class="form-label" style="margin: 0; font-size: 12px;">Desde:</label>
+              <input type="date" id="filterSalesDesde" class="form-input" style="width: 145px; padding: 6px 10px;">
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <label class="form-label" style="margin: 0; font-size: 12px;">Hasta:</label>
+              <input type="date" id="filterSalesHasta" class="form-input" style="width: 145px; padding: 6px 10px;">
+            </div>
+            <button class="btn btn-primary btn-sm" id="btnFilterSalesSubmit">Filtrar Período</button>
+            <button class="btn btn-secondary btn-sm" id="btnPresetSalesToday">Hoy</button>
+            <button class="btn btn-secondary btn-sm" id="btnPresetSales7Days">Últimos 7 Días</button>
+            <button class="btn btn-secondary btn-sm" id="btnPresetSalesMonth">Este Mes</button>
+          </div>
+          <div>
+            <select id="filterSalesEstado" class="form-select" style="width: 150px; padding: 6px 10px;">
+              <option value="Todos">Todos los Estados</option>
+              <option value="registrada">Solo Registradas</option>
+              <option value="anulada">Solo Anuladas</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="data-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>N° Comprobante</th>
+                <th>Fecha y Hora</th>
+                <th>Empleado</th>
+                <th>Tipo</th>
+                <th>Método de Pago</th>
+                <th>Total</th>
+                <th>Estado</th>
+                <th style="text-align: right;">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="salesTableBody">
+              <!-- Renderizado dinámico desde sales.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ----------------------------------------------------------------------
+         VISTA 4: MOVIMIENTOS DE STOCK (CL-06 MOVIMIENTOSTOCK)
+         ---------------------------------------------------------------------- -->
+    <section id="view-stock-movements" class="view-section">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>Auditoría de Movimientos de Stock</h2>
+          <p>Trazabilidad histórica de ingresos, ventas, correcciones, anulaciones y devoluciones</p>
+        </div>
+        <div class="header-actions">
+          <select id="filterStockMotivo" class="form-select" style="width: 200px;">
+            <option value="Todos">Todos los Motivos</option>
+            <option value="ingreso">Ingreso de Mercadería</option>
+            <option value="venta">Ventas</option>
+            <option value="devolución">Devoluciones</option>
+            <option value="anulación de venta">Anulaciones de Venta</option>
+            <option value="modificación de venta">Modificaciones</option>
+            <option value="corrección">Correcciones Manuales</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="data-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Fecha y Hora</th>
+                <th>Código</th>
+                <th>Producto</th>
+                <th>Motivo</th>
+                <th>Variación</th>
+                <th>Stock Resultante</th>
+                <th>Usuario Responsable</th>
+                <th>Detalle</th>
+              </tr>
+            </thead>
+            <tbody id="stockMovementsTableBody">
+              <!-- Renderizado dinámico desde stock.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ----------------------------------------------------------------------
+         VISTA 5: GESTIÓN DE USUARIOS (CU02, CU03, CU04, CU05 - GERENTE ONLY)
+         ---------------------------------------------------------------------- -->
+    <section id="view-users" class="view-section">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>Administración de Usuarios y Permisos</h2>
+          <p>Gestión de cuentas con roles Gerente y Empleado. Contraseñas seguras según norma RNFS-01.</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-primary" id="btnOpenNewUserModal">
+            <span>+ Registrar Nuevo Usuario</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="data-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Nombre Completo</th>
+                <th>Usuario</th>
+                <th>Rol</th>
+                <th>Estado</th>
+                <th>Fecha de Alta</th>
+                <th style="text-align: right;">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <!-- Renderizado dinámico desde users.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ----------------------------------------------------------------------
+         VISTA 6: INFORMES Y ESTADÍSTICAS DEL NEGOCIO (GERENTE)
+         ---------------------------------------------------------------------- -->
+    <section id="view-reports" class="view-section">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>Panel de Control e Informes de Gestión</h2>
+          <p>Resumen general del rendimiento comercial del Drugstore</p>
+        </div>
+      </div>
+
+      <div class="metrics-row">
+        <div class="metric-card">
+          <div class="metric-icon-box icon-green">📅</div>
+          <div class="metric-info">
+            <h4>Ventas de Hoy</h4>
+            <p id="dashTodaySales">$ 0,00</p>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon-box icon-blue">📈</div>
+          <div class="metric-info">
+            <h4>Total Histórico</h4>
+            <p id="dashTotalSales">$ 0,00</p>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon-box icon-amber">⚠️</div>
+          <div class="metric-info">
+            <h4>Productos con Stock Bajo (&le; 5)</h4>
+            <p id="dashLowStockCount">0</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <!-- Ranking de Productos Más Vendidos -->
+        <div class="table-card">
+          <div class="cart-header">
+            <h3>🏆 Productos Más Vendidos</h3>
+          </div>
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Categoría</th>
+                  <th>Unidades</th>
+                  <th>Total Facturado</th>
+                </tr>
+              </thead>
+              <tbody id="dashTopProductsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Alertas de Stock Crítico -->
+        <div class="table-card">
+          <div class="cart-header" style="background: #fffbeb;">
+            <h3 style="color: #92400e;">⚠️ Alertas de Reposición Urgente</h3>
+          </div>
+          <div class="data-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Producto</th>
+                  <th>Categoría</th>
+                  <th>Stock Actual</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="dashCriticalStockTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================================
+       MODALES DEL SISTEMA (INTERFACES NORMALES E INTUITIVAS)
+       ======================================================================== -->
+
+  <!-- 1. MODAL COBRO / PAGO DE VENTA (CU06) -->
+  <div class="modal-backdrop" id="modalCheckout">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>💳 Confirmar Cobro y Emisión de Comprobante</h3>
+        <button class="modal-close-btn" data-close-modal="modalCheckout">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 14px; text-align: center; margin-bottom: 16px;">
+          <div style="font-size: 13px; color: #065f46; font-weight: 600;">TOTAL A PAGAR</div>
+          <div style="font-size: 32px; font-weight: 800; color: #047857;" id="modalCheckoutTotal">$ 0,00</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Tipo de Comprobante a emitir</label>
+          <div style="display: flex; gap: 10px;">
+            <label style="flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              <input type="radio" name="checkoutTipoComp" value="comprobante" checked>
+              <span>Ticket Comprobante</span>
+            </label>
+            <label style="flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              <input type="radio" name="checkoutTipoComp" value="factura">
+              <span>Factura "B"</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Método de Pago</label>
+          <select id="checkoutMetodoPago" class="form-select">
+            <option value="Efectivo">Efectivo</option>
+            <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+            <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+            <option value="Transferencia / QR">Transferencia Bancaria / QR</option>
+          </select>
+        </div>
+
+        <!-- Sección de cálculo de vuelto para Efectivo -->
+        <div id="checkoutCashSection">
+          <div class="form-group">
+            <label class="form-label">Monto Abonado por el Cliente ($)</label>
+            <input type="number" id="checkoutMontoAbonado" class="form-input" style="font-size: 18px; font-weight: bold;" step="50">
+            <!-- Botones de billetes rápidos comunes en Argentina -->
+            <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-secondary btn-sm quick-bill" data-amount="exact">Monto Exacto</button>
+              <button type="button" class="btn btn-secondary btn-sm quick-bill" data-amount="2000">$ 2.000</button>
+              <button type="button" class="btn btn-secondary btn-sm quick-bill" data-amount="5000">$ 5.000</button>
+              <button type="button" class="btn btn-secondary btn-sm quick-bill" data-amount="10000">$ 10.000</button>
+              <button type="button" class="btn btn-secondary btn-sm quick-bill" data-amount="20000">$ 20.000</button>
+            </div>
+          </div>
+          <div style="background: #f1f5f9; padding: 10px 14px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-weight: 600;">Vuelto a entregar:</span>
+            <strong style="font-size: 20px; color: #1e40af;" id="checkoutVueltoDisplay">$ 0,00</strong>
+          </div>
+        </div>
+
+        <!-- Datos opcionales del cliente -->
+        <details style="margin-top: 14px; font-size: 13px;">
+          <summary style="cursor: pointer; color: var(--primary); font-weight: 600;">+ Datos del Cliente (Opcional)</summary>
+          <div style="padding-top: 10px;">
+            <div class="form-group">
+              <label class="form-label">Nombre / Razón Social</label>
+              <input type="text" id="checkoutClienteNombre" class="form-input" placeholder="Consumidor Final">
+            </div>
+            <div class="form-group">
+              <label class="form-label">DNI / CUIT</label>
+              <input type="text" id="checkoutClienteDni" class="form-input" placeholder="Opcional">
+            </div>
+          </div>
+        </details>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close-modal="modalCheckout">Cancelar</button>
+        <button class="btn btn-success btn-lg" id="btnConfirmSaleSubmit">
+          <span>✓ Finalizar Venta y Emitir Ticket</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. MODAL VISTA PREVIA E IMPRESIÓN DE TICKET / FACTURA (CL-05 COMPROBANTE) -->
+  <div class="modal-backdrop" id="modalTicketPreview">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>🧾 Comprobante Emitido</h3>
+        <button class="modal-close-btn" data-close-modal="modalTicketPreview">&times;</button>
+      </div>
+      <div class="modal-body" style="background: #f1f5f9;">
+        <!-- Contenedor con formato de ticket térmico 80mm -->
+        <div id="printableTicketArea" class="thermal-ticket-container">
+          <div class="ticket-header">
+            <h2>DRUGSTORE "X"</h2>
+            <div>Concordia, Entre Ríos</div>
+            <div>CUIT: 30-71234567-8</div>
+            <div>Punto de Venta N° 0001</div>
+            <div class="ticket-divider"></div>
+            <div style="font-weight: bold;" id="ticketTipoNum">TICKET COMPROBANTE N° TIK-0001-00000001</div>
+            <div id="ticketFechaHora">10/11/2026 21:00:00</div>
+            <div id="ticketAtendidoPor">Atendido por: Empleado</div>
+            <div id="ticketCliente">Cliente: Consumidor Final</div>
+          </div>
+
+          <div class="ticket-divider"></div>
+
+          <table class="ticket-table">
+            <thead>
+              <tr>
+                <th>DESCRIPCIÓN</th>
+                <th style="text-align: center;">CANT</th>
+                <th style="text-align: right;">PRECIO</th>
+                <th style="text-align: right;">TOTAL</th>
+              </tr>
+            </thead>
+            <tbody id="ticketItemsBody"></tbody>
+          </table>
+
+          <div class="ticket-divider"></div>
+
+          <div class="ticket-total-box">
+            <div style="display: flex; justify-content: space-between;">
+              <span>TOTAL ARS:</span>
+              <span id="ticketTotalAmount">$ 0,00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: normal; margin-top: 4px;">
+              <span>Método de Pago:</span>
+              <span id="ticketMetodoPago">Efectivo</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: normal;">
+              <span>Abonado:</span>
+              <span id="ticketAbonado">$ 0,00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: normal;">
+              <span>Vuelto:</span>
+              <span id="ticketVuelto">$ 0,00</span>
+            </div>
+          </div>
+
+          <div class="ticket-footer">
+            <div>*** GRACIAS POR SU COMPRA ***</div>
+            <div>Conserve este comprobante ante cualquier cambio</div>
+            <div style="margin-top: 8px; font-family: monospace; font-size: 10px;">||||||||||||||||||||||||||||||||||||</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close-modal="modalTicketPreview">Cerrar</button>
+        <button class="btn btn-primary" id="btnPrintTicket">🖨️ Imprimir Ticket</button>
+        <button class="btn btn-success" id="btnTicketNewSale">🛒 Nueva Venta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. MODAL NUEVO PRODUCTO (CU10 - GERENTE) -->
+  <div class="modal-backdrop" id="modalNewProduct">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>+ Registrar Nuevo Producto (CU10)</h3>
+        <button class="modal-close-btn" data-close-modal="modalNewProduct">&times;</button>
+      </div>
+      <form id="formNewProduct">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Código de Barras / SKU *</label>
+            <input type="text" id="newProdCodigo" class="form-input" placeholder="Ej: 7790895000997" required>
+            <div class="input-help">Código numérico único del producto. Puede escanearlo directamente.</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Nombre del Producto *</label>
+            <input type="text" id="newProdNombre" class="form-input" placeholder="Ej: Alfajor Havanna 70% Cacao" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Categoría *</label>
+            <select id="newProdCategoria" class="form-select" required>
+              <option value="Bebidas">Bebidas</option>
+              <option value="Golosinas">Golosinas</option>
+              <option value="Snacks">Snacks</option>
+              <option value="Almacén">Almacén</option>
+              <option value="Kiosco">Kiosco</option>
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Precio Unitario ($) *</label>
+              <input type="number" id="newProdPrecio" class="form-input" step="0.50" min="0" placeholder="0.00" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Stock Inicial *</label>
+              <input type="number" id="newProdStock" class="form-input" min="0" placeholder="0" required>
+              <div class="input-help">Si ingresa 0, nacerá suspendido (R-03).</div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close-modal="modalNewProduct">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Producto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. MODAL MODIFICAR PRODUCTO (CU12 - GERENTE) -->
+  <div class="modal-backdrop" id="modalEditProduct">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>✏️ Modificar Producto (CU12)</h3>
+        <button class="modal-close-btn" data-close-modal="modalEditProduct">&times;</button>
+      </div>
+      <form id="formEditProduct">
+        <input type="hidden" id="editProdId">
+        <div class="modal-body">
+          <div class="rule-alert-box">
+            <strong>Regla R-03:</strong> "No es posible modificar el stock a 0; en ese caso se da la suspensión automática del producto."
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Código de Barras</label>
+            <input type="text" id="editProdCodigo" class="form-input" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Nombre del Producto</label>
+            <input type="text" id="editProdNombre" class="form-input" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Categoría</label>
+            <select id="editProdCategoria" class="form-select" required>
+              <option value="Bebidas">Bebidas</option>
+              <option value="Golosinas">Golosinas</option>
+              <option value="Snacks">Snacks</option>
+              <option value="Almacén">Almacén</option>
+              <option value="Kiosco">Kiosco</option>
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label">Precio Unitario ($)</label>
+              <input type="number" id="editProdPrecio" class="form-input" step="0.50" min="0" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Stock Actual</label>
+              <input type="number" id="editProdStock" class="form-input" min="0" required>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close-modal="modalEditProduct">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Actualizar Producto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. MODAL INGRESO / AJUSTE DE STOCK RÁPIDO (CU12 - GERENTE) -->
+  <div class="modal-backdrop" id="modalStockEntry">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>📦 Ingreso / Ajuste de Stock</h3>
+        <button class="modal-close-btn" data-close-modal="modalStockEntry">&times;</button>
+      </div>
+      <form id="formStockEntry">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Seleccionar Producto</label>
+            <select id="stockEntryProdSelect" class="form-select" required></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tipo de Movimiento</label>
+            <select id="stockEntryMotivo" class="form-select">
+              <option value="ingreso">Ingreso de Mercadería de Proveedor (+)</option>
+              <option value="corrección">Corrección de Inventario (+ / -)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Cantidad a modificar (+ para sumar, - para restar)</label>
+            <input type="number" id="stockEntryCantidad" class="form-input" placeholder="Ej: 12" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Detalle / Nota</label>
+            <input type="text" id="stockEntryDetalle" class="form-input" placeholder="Ej: Recepción Factura Distribuidora Concordia">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close-modal="modalStockEntry">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Registrar Movimiento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. MODAL REGISTRAR DEVOLUCIÓN DE PRODUCTO (CU12 - GERENTE) -->
+  <div class="modal-backdrop" id="modalProductReturn">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>↩ Registrar Devolución de Producto</h3>
+        <button class="modal-close-btn" data-close-modal="modalProductReturn">&times;</button>
+      </div>
+      <form id="formProductReturn">
+        <div class="modal-body">
+          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+            Registra el reintegro físico de unidades al inventario y genera un movimiento de stock con motivo "devolución".
+          </p>
+          <div class="form-group">
+            <label class="form-label">Producto devuelto</label>
+            <select id="returnProdSelect" class="form-select" required></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Cantidad Devuelta (unidades a sumar al stock)</label>
+            <input type="number" id="returnCantidad" class="form-input" min="1" value="1" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Motivo de la Devolución</label>
+            <input type="text" id="returnMotivo" class="form-input" placeholder="Ej: Cambio de producto solicitado por cliente" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close-modal="modalProductReturn">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Registrar Devolución</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 7. MODAL ANULAR VENTA (CU08 - REGLA R-02 24HS) -->
+  <div class="modal-backdrop" id="modalCancelSale">
+    <div class="modal-box">
+      <div class="modal-header" style="background: #fef2f2;">
+        <h3 style="color: #991b1b;">⚠️ Anular Venta (CU08 - Regla R-02)</h3>
+        <button class="modal-close-btn" data-close-modal="modalCancelSale">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="rule-alert-box" style="background: #fef2f2; border-color: #dc2626; color: #991b1b;">
+          <strong>Regla R-02:</strong> "La anulación de la venta sólo puede darse dentro de las 24 horas de realizada."
+        </div>
+
+        <div style="background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid var(--border-light); margin-bottom: 14px;">
+          <div><strong>Venta ID:</strong> <span id="cancelSaleIdText">--</span></div>
+          <div><strong>Comprobante:</strong> <span id="cancelSaleCompText">--</span></div>
+          <div><strong>Fecha y Hora:</strong> <span id="cancelSaleFechaText">--</span></div>
+          <div><strong>Total:</strong> <span id="cancelSaleTotalText">--</span></div>
+          <div style="margin-top: 8px;" id="cancelSaleTimerNotice"></div>
+        </div>
+
+        <p style="font-size: 13px; color: #475569; margin-bottom: 12px;">
+          Al anular la venta, los productos serán <strong>reintegrados automáticamente al stock</strong> y quedará registrado el movimiento de auditoría.
+        </p>
+
+        <div class="form-group">
+          <label class="form-label">Motivo de la anulación *</label>
+          <input type="text" id="cancelSaleMotivoInput" class="form-input" placeholder="Ej: Error en medio de pago / Compra cancelada en mostrador" required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close-modal="modalCancelSale">Cerrar</button>
+        <button class="btn btn-danger" id="btnConfirmAnularVenta">Confirmar Anulación de Venta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. MODAL MODIFICAR VENTA (CU07 - GERENTE) -->
+  <div class="modal-backdrop" id="modalEditSale">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <h3>✏️ Modificar Detalle de Venta (CU07)</h3>
+        <button class="modal-close-btn" data-close-modal="modalEditSale">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">
+          Puede modificar las cantidades o agregar/quitar ítems. El sistema recalibrará automáticamente el stock y actualizará el comprobante.
+        </p>
+        <div style="margin-bottom: 12px; display: flex; gap: 10px;">
+          <select id="editSaleAddProdSelect" class="form-select" style="flex: 1;"></select>
+          <button class="btn btn-secondary btn-sm" id="btnEditSaleAddItem">+ Agregar a Venta</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Precio Unit.</th>
+              <th style="width: 140px;">Cantidad</th>
+              <th>Subtotal</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="editSaleItemsBody"></tbody>
+        </table>
+        <div style="text-align: right; margin-top: 14px; font-size: 18px; font-weight: bold;">
+          Nuevo Total Recalculado: <span id="editSaleNewTotal">$ 0,00</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close-modal="modalEditSale">Cancelar</button>
+        <button class="btn btn-primary" id="btnSaveEditSale">Guardar Modificaciones</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. MODAL NUEVO USUARIO (CU02 - RNFS-01 CONTRASENAS SEGURAS) -->
+  <div class="modal-backdrop" id="modalNewUser">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>+ Registrar Nuevo Usuario (CU02)</h3>
+        <button class="modal-close-btn" data-close-modal="modalNewUser">&times;</button>
+      </div>
+      <form id="formNewUser">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Nombre y Apellido *</label>
+            <input type="text" id="newUserName" class="form-input" placeholder="Ej: Joaquín Britos" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Nombre de Usuario (Login) *</label>
+            <input type="text" id="newUserUsername" class="form-input" placeholder="Ej: jbritos" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Rol del Usuario *</label>
+            <select id="newUserRole" class="form-select" required>
+              <option value="Empleado">Empleado (Mostrador y Caja)</option>
+              <option value="Gerente">Gerente (Acceso Total)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Contraseña de Acceso *</label>
+            <input type="password" id="newUserPass" class="form-input" placeholder="Mínimo 12 caracteres..." required>
+            
+            <!-- Checklist interactivo según Requerimiento No Funcional RNFS-01 -->
+            <div class="password-requirements-card">
+              <div style="font-weight: 700; margin-bottom: 6px; color: #334155;">
+                Requisitos de Seguridad (RNFS-01):
+              </div>
+              <div class="req-item" id="reqLen"><span>•</span> Mínimo 12 caracteres</div>
+              <div class="req-item" id="reqUpper"><span>•</span> Al menos una letra mayúscula (A-Z)</div>
+              <div class="req-item" id="reqLower"><span>•</span> Al menos una letra minúscula (a-z)</div>
+              <div class="req-item" id="reqNum"><span>•</span> Al menos un número (0-9)</div>
+              <div class="req-item" id="reqSpecial"><span>•</span> Al menos un caracter especial (!@#$%^&*...)</div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close-modal="modalNewUser">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitNewUser">Crear Usuario</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 10. MODAL INICIAR SESIÓN (CU01) -->
+  <div class="modal-backdrop" id="modalLogin">
+    <div class="modal-box" style="max-width: 420px;">
+      <div class="modal-header" style="text-align: center; justify-content: center; flex-direction: column;">
+        <div class="brand-logo-icon" style="margin-bottom: 8px;">DX</div>
+        <h3>Iniciar Sesión en Drugstore X</h3>
+        <p style="font-size: 12px; color: var(--text-muted);">Ingrese sus credenciales de acceso (CU01)</p>
+      </div>
+      <form id="formLogin">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Nombre de Usuario</label>
+            <input type="text" id="loginUsername" class="form-input" placeholder="gerente o empleado" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contraseña</label>
+            <input type="password" id="loginPassword" class="form-input" placeholder="Contraseña..." required>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid var(--border-light); border-radius: 6px; padding: 10px; font-size: 11px; color: #475569;">
+            <strong>Cuentas de demostración iniciales:</strong><br>
+            • Gerente: <code>gerente</code> / <code>Gerente2026!#</code><br>
+            • Empleado: <code>empleado</code> / <code>Empleado2026!#</code>
+          </div>
+        </div>
+        <div class="modal-footer" style="justify-content: stretch;">
+          <button type="submit" class="btn btn-primary" style="width: 100%;">Ingresar al Sistema</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Contenedor para mensajes flotantes (Toasts) -->
+  <div id="toastContainer"></div>
+
+  <!-- Scripts modulares del Frontend -->
+  <script src="js/app.js?v=2"></script>
+  <script src="js/pos.js?v=2"></script>
+  <script src="js/products.js?v=2"></script>
+  <script src="js/sales.js?v=2"></script>
+  <script src="js/stock.js?v=2"></script>
+  <script src="js/users.js?v=2"></script>
+  <script src="js/reports.js?v=2"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "name": "drugstore-pos",
+  "version": "1.0.0",
+  "description": "Sistema de Gestión de Stock y Ventas para Drugstore X (Concordia, Entre Ríos) - RUP & IEEE-830",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "pos",
+    "stock",
+    "ventas",
+    "drugstore",
+    "rup",
+    "sqlite"
+  ],
+  "author": "Grupo 6 - UNER FCAD",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0"
+  }
+}
